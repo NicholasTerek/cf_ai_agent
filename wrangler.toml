@@ -1,0 +1,21 @@
+name = "cf_ai_agents_demo"
+main = "src/worker.ts"
+compatibility_date = "2024-09-10"
+
+# Force local mode for development
+[dev]
+local = true
+
+[ai]
+# Bind Workers AI to env.AI
+binding = "AI"
+# Use remote AI in dev (required for Workers AI)
+# Set to false if you want to mock AI responses locally
+
+[[durable_objects.bindings]]
+name = "MEMORY_DO"
+class_name = "MemoryDO"
+
+[[migrations]]
+ tag = "v1"
+ new_classes = ["MemoryDO"]
