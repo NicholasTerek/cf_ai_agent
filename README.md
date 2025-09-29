@@ -12,10 +12,9 @@ This satisfies the assignment requirements: LLM, workflow/coordination (Workers 
 ## Demo
 
 <div align="center">
-  <video src="public/demo.gif" controls width="800" style="max-width:100%;">
-    Your browser does not support the video tag.
-  </video>
+  <img src="public/demo.gif" alt="Demo" width="800" style="max-width:100%;" />
 </div>
+
 
 ## Features
 
