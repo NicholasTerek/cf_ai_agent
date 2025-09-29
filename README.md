@@ -11,10 +11,8 @@ This satisfies the assignment requirements: LLM, workflow/coordination (Workers 
 
 ## Demo
 
-https://github.com/NicholasTerek/cf_ai_agent/assets/your-username/demo.mp4
-
 <div align="center">
-  <video src="public/demo.mp4" controls width="800" style="max-width:100%;">
+  <video src="public/demo.gif" controls width="800" style="max-width:100%;">
     Your browser does not support the video tag.
   </video>
 </div>
