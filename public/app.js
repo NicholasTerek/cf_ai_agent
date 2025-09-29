@@ -206,7 +206,32 @@ function updateTickerTape() {
     return `<span style="color: ${color}; margin-right: 32px;">${stock.symbol} $${stock.price.toFixed(2)} ${changeSymbol}${stock.change.toFixed(2)}%</span>`;
   }).join('');
 
-  container.innerHTML = tickerItems;
+  // Duplicate content for seamless looping
+  container.innerHTML = tickerItems + tickerItems; // Duplicate for seamless loop
+  
+  // Reset animation to ensure smooth restart
+  container.style.animation = 'none';
+  container.offsetHeight; // Trigger reflow
+  container.style.animation = 'ticker-scroll 40s linear infinite';
+}
+
+// Add ticker animation styles if not already added
+if (!document.getElementById('ticker-styles')) {
+  const style = document.createElement('style');
+  style.id = 'ticker-styles';
+  style.textContent = `
+    @keyframes ticker-scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    #ticker-content {
+      display: inline-block;
+      white-space: nowrap;
+      padding-right: 100%;
+      animation: ticker-scroll 40s linear infinite;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 // Update sector heatmap
@@ -529,8 +554,34 @@ function openSearch() {
   console.log('Search opened');
 }
 
+// Format current time in market format (12h with AM/PM)
+function getMarketTime() {
+  const now = new Date();
+  const options = { 
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  };
+  const timeStr = now.toLocaleTimeString('en-US', options);
+  return `LIVE•NYSE ${timeStr} ET`;
+}
+
+// Update market status with current time
+function updateMarketStatus() {
+  const statusElement = document.getElementById('market-status');
+  if (statusElement) {
+    statusElement.textContent = getMarketTime();
+  }
+}
+
 // Start periodic data updates
 function startDataUpdates() {
+  // Update market time immediately and then every minute
+  updateMarketStatus();
+  setInterval(updateMarketStatus, 60000);
+  
+  // Update market data every 3 seconds
   setInterval(() => {
     updateMarketData();
   }, 3000);
@@ -628,7 +679,7 @@ function initGlobe() {
       .atmosphereColor('#4DA3FF')
       .atmosphereAltitude(0.15);
 
-    // Add dynamic financial arcs with proper animation
+    // Add direct path financial arcs with clean animation
     setTimeout(() => {
       const arcs = generateFinancialArcs();
       Globe.arcsData(arcs)
@@ -636,13 +687,15 @@ function initGlobe() {
           const colors = ['#00D4FF', '#16C784', '#F8B84E', '#FF5D5D'];
           return colors[Math.floor(Math.random() * colors.length)];
         })
-        .arcAltitude((d) => 0.1 + Math.random() * 0.3)
-        .arcStroke((d) => 0.3 + Math.random() * 0.3)
-        .arcDashLength(0.4)
-        .arcDashGap(2)
-        .arcDashAnimateTime(2000)
-        .arcsTransitionDuration(1000)
-        .arcDashInitialGap((d, i) => i * 0.1);
+        .arcAltitude(0.1) // Lower altitude for straighter paths
+        .arcStroke(0.4) // Slightly thicker lines
+        .arcDashLength(0.3) // Shorter dash length
+        .arcDashGap(0.7) // Smaller gap between dashes
+        .arcDashAnimateTime(1500) // Faster animation
+        .arcsTransitionDuration(800) // Faster transition
+        .arcDashInitialGap(0) // Start animation immediately
+        .arcStroke((d) => 0.4) // Consistent stroke width
+        .arcAltitudeAutoScale(0.3); // Reduced curve for straighter paths
     }, 1000);
 
     // Enhance globe material
@@ -713,23 +766,24 @@ function addNewShootingArc() {
   if (!Globe || !Globe.arcsData || typeof ThreeGlobe === 'undefined') return;
   
   const exchanges = [
-    { lat: 40.7128, lng: -74.0060, name: 'NYSE' },
-    { lat: 51.5074, lng: -0.1278, name: 'LSE' },
-    { lat: 35.6762, lng: 139.6503, name: 'TSE' },
-    { lat: 31.2304, lng: 121.4737, name: 'SSE' },
-    { lat: 19.0760, lng: 72.8777, name: 'BSE' },
-    { lat: 49.2827, lng: -123.1207, name: 'TSX' },
-    { lat: 52.5200, lng: 13.4050, name: 'FRA' },
-    { lat: -33.8688, lng: 151.2093, name: 'ASX' },
-    { lat: 22.3193, lng: 114.1694, name: 'HKE' },
-    { lat: -23.5505, lng: -46.6333, name: 'B3' }
+    { lat: 40.7128, lng: -74.0060, name: 'NYSE' }, // New York
+    { lat: 51.5074, lng: -0.1278, name: 'LSE' },   // London
+    { lat: 35.6762, lng: 139.6503, name: 'TSE' },  // Tokyo
+    { lat: 31.2304, lng: 121.4737, name: 'SSE' },  // Shanghai
+    { lat: 19.0760, lng: 72.8777, name: 'BSE' },   // Mumbai
+    { lat: 49.2827, lng: -123.1207, name: 'TSX' }, // Toronto
+    { lat: 52.5200, lng: 13.4050, name: 'FRA' },   // Frankfurt
+    { lat: -33.8688, lng: 151.2093, name: 'ASX' }, // Sydney
+    { lat: 22.3193, lng: 114.1694, name: 'HKE' },  // Hong Kong
+    { lat: -23.5505, lng: -46.6333, name: 'B3' }   // São Paulo
   ];
   
   // Pick two random exchanges
   const from = exchanges[Math.floor(Math.random() * exchanges.length)];
-  const to = exchanges[Math.floor(Math.random() * exchanges.length)];
-  
-  if (from === to) return;
+  let to;
+  do {
+    to = exchanges[Math.floor(Math.random() * exchanges.length)];
+  } while (from === to);
   
   const newArc = {
     startLat: from.lat,
@@ -744,9 +798,9 @@ function addNewShootingArc() {
   // Add new arc
   currentArcs.push(newArc);
   
-  // Keep only last 15 arcs to prevent too many
-  if (currentArcs.length > 15) {
-    currentArcs = currentArcs.slice(-15);
+  // Keep only last 20 arcs to prevent too many
+  if (currentArcs.length > 20) {
+    currentArcs = currentArcs.slice(-20);
   }
   
   // Update globe with current arcs
@@ -755,13 +809,14 @@ function addNewShootingArc() {
       const colors = ['#00D4FF', '#16C784', '#F8B84E', '#FF5D5D'];
       return colors[Math.floor(Math.random() * colors.length)];
     })
-    .arcAltitude((d) => 0.1 + Math.random() * 0.3)
-    .arcStroke((d) => 0.2 + Math.random() * 0.4)
-    .arcDashLength(0.3)
-    .arcDashGap(1.5)
-    .arcDashAnimateTime(2500)
-    .arcsTransitionDuration(800)
-    .arcDashInitialGap((d, i) => i * 0.05);
+    .arcAltitude(0.1) // Lower altitude for straighter paths
+    .arcStroke(0.4) // Consistent stroke width
+    .arcDashLength(0.3) // Shorter dash length
+    .arcDashGap(0.7) // Smaller gap between dashes
+    .arcDashAnimateTime(1500) // Faster animation
+    .arcsTransitionDuration(800) // Faster transition
+    .arcDashInitialGap(0) // Start animation immediately
+    .arcAltitudeAutoScale(0.3); // Reduced curve for straighter paths
 }
 
 // Add new shooting arcs every 2-4 seconds
