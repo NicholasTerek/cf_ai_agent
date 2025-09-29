@@ -110,10 +110,130 @@ Wrangler will create the Durable Object based on the migration in `wrangler.toml
 The tests cover:
 - **Worker routes**: HTML serving, API endpoints, error handling
 - **Durable Object**: Message storage, history retrieval, pruning
-- **Integration**: End-to-end message flow with mocked AI
 
 ## Next steps (optional enhancements)
 
 - Add voice input with the Cloudflare Realtime API.
 - Split UI to a dedicated Cloudflare Pages project and point it to the Worker API.
 - Use Cloudflare Agents SDK to compose tools and routes as they become available in your account.
+
+# CF AI Financial Markets Globe
+
+A modern financial markets visualization dashboard with AI-powered analysis, featuring a 3D globe showing real-time market data flows between global exchanges.
+
+## Quick Start
+
+```bash
+npm install
+npm run dev
+```
+
+Visit http://localhost:8787 to see the financial dashboard.
+
+## Features
+
+- **Interactive 3D Globe**: Financial data streams visualized as animated arcs between global exchanges
+- **Modern Dashboard**: Trading terminal-inspired UI with collapsible panels and technical analysis
+- **AI Financial Advisor**: Chat interface for market analysis and investment insights
+- **Real-time Market Data**: Live market simulation with price updates and volume tracking
+- **Technical Analysis**: RSI, MACD, moving averages, and sector performance charts
+- **Responsive Design**: Mobile-first design with glassmorphism effects
+
+## Architecture
+
+- **Frontend**: Modern dashboard with collapsible panels, technical analysis charts, and AI chat
+- **3D Globe**: Interactive globe showing financial data streams as animated arcs
+- **AI Agent**: Cloudflare Workers AI providing market analysis and insights
+- **Real-time Data**: Mock financial data with live updates and market simulation
+- **Static Assets**: JavaScript code served from `/public/app.js` for better organization
+
+## Recent Changes
+
+### JavaScript Asset Extraction
+We moved the embedded JavaScript code from a template literal in `src/static.ts` into a separate static asset at `public/app.js` to avoid nested template literal parse errors and improve code organization.
+
+**Changes Made:**
+- Created `/public/app.js` with all dashboard JavaScript functionality
+- Updated `src/static.ts` to only export the HTML template
+- Configured `wrangler.toml` to serve static assets from the `public` directory
+- Removed duplicate JavaScript code and consolidated financial data handling
+- Updated DOM element IDs to use consistent naming (`#input`, `#send`, `#chat`)
+- Added CSS variables for new accent colors: `--accent-primary: #00D4FF`, `--accent-secondary: #7C3AED`, `--accent-glow: rgba(0,212,255,0.35)`
+
+This separation improves maintainability and eliminates TypeScript/ESBuild parsing issues that occurred with complex template literals containing HTML and JavaScript.
+
+## File Structure
+
+```
+src/
+├── worker.ts          # Main Worker with routes and AI logic
+├── static.ts          # HTML/CSS template for the dashboard
+├── memory_do.ts       # Durable Object for message storage
+└── worker.test.ts     # Tests for Worker functionality
+
+public/
+└── app.js             # Dashboard JavaScript functionality
+
+test-basic.mjs         # Basic integration test
+wrangler.toml          # Cloudflare configuration
+```
+
+## API Endpoints
+
+- `GET /` - Serves the main financial dashboard
+- `POST /api/chat` - Chat with the AI financial advisor
+- `GET /api/financial-data` - Mock financial data endpoint
+- Static assets served from `/public/` directory
+
+## Development
+
+### Prerequisites
+- Node.js 18+
+- Cloudflare account (for deployment)
+
+### Local Development
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Run tests
+npm test
+
+# Type checking
+npm run typecheck
+```
+
+### Deployment
+```bash
+# Deploy to Cloudflare
+npm run deploy
+```
+
+## Configuration
+
+The app uses several Cloudflare services:
+
+- **Workers AI**: For financial analysis and chat responses (Llama 3.3 70B model)
+- **Durable Objects**: For persistent conversation storage
+- **Workers**: For serving the app and API endpoints
+- **Static Assets**: For serving JavaScript and other static files
+
+## Design System
+
+The dashboard uses a modern financial terminal aesthetic with:
+
+- **Color Palette**: Dark theme (`#0B0E14` background) with blue/orange accents
+- **Typography**: Inter font family for clean, readable text
+- **Layout**: CSS Grid with collapsible panels and responsive breakpoints
+- **Effects**: Glassmorphism, subtle shadows, and smooth transitions
+- **Icons**: Minimalistic style with emoji accents
+
+## Notes
+
+- This project uses a cookie `session` to key the Durable Object instance per user
+- The AI provides financial analysis and market insights in plain English
+- Market data is currently simulated but designed for easy integration with real APIs
+- The globe shows animated arcs representing trade flows between major exchanges

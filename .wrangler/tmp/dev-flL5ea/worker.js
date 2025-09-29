@@ -1,4 +1,8 @@
-export const INDEX_HTML = `<!DOCTYPE html>
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+
+// src/static.ts
+var INDEX_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1415,7 +1419,7 @@ export const INDEX_HTML = `<!DOCTYPE html>
       <div class="live-status">
         <div class="status-dot"></div>
         <span>LIVE</span>
-        <span>•</span>
+        <span>\u2022</span>
         <span id="market-session">NYSE 14:30 ET</span>
       </div>
     </div>
@@ -1427,7 +1431,7 @@ export const INDEX_HTML = `<!DOCTYPE html>
     <div class="search-section">
       <div class="search-trigger" onclick="openSearch()">
         <span>Search</span>
-        <span style="opacity: 0.6;">⌘K</span>
+        <span style="opacity: 0.6;">\u2318K</span>
       </div>
     </div>
   </div>
@@ -1524,16 +1528,16 @@ export const INDEX_HTML = `<!DOCTYPE html>
       <!-- Today's Tape Strip -->
       <div class="tape-strip">
         <div class="tape-item">
-          <div class="tape-label">Top Movers ↑</div>
+          <div class="tape-label">Top Movers \u2191</div>
           <div class="tape-value" style="color: var(--pos);">NVDA +5.2%</div>
         </div>
         <div class="tape-item">
-          <div class="tape-label">Top Movers ↓</div>
+          <div class="tape-label">Top Movers \u2193</div>
           <div class="tape-value" style="color: var(--neg);">TSLA -3.1%</div>
         </div>
         <div class="tape-item">
           <div class="tape-label">Sector Breadth</div>
-          <div class="tape-value">7/11 ↑</div>
+          <div class="tape-value">7/11 \u2191</div>
         </div>
         <div class="tape-item">
           <div class="tape-label">Net Advancers</div>
@@ -1573,7 +1577,7 @@ export const INDEX_HTML = `<!DOCTYPE html>
           </div>
           <div class="chat-input">
             <textarea class="input-field" id="input" placeholder="Ask about markets..." rows="1"></textarea>
-            <button class="send-btn" id="send">→</button>
+            <button class="send-btn" id="send">\u2192</button>
           </div>
         </div>
       </div>
@@ -1599,8 +1603,334 @@ export const INDEX_HTML = `<!DOCTYPE html>
   </div>
 
   <!-- Optimized Three.js libraries with faster CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three-globe@2.31.0/dist/three-globe.min.js"></script>
-  <script type="module" src="/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"><\/script>
+  <script src="https://cdn.jsdelivr.net/npm/three-globe@2.31.0/dist/three-globe.min.js"><\/script>
+  <script type="module" src="/app.js"><\/script>
 </body>
 </html>`;
+
+// src/memory_do.ts
+var MemoryDO = class {
+  static {
+    __name(this, "MemoryDO");
+  }
+  state;
+  constructor(state, env) {
+    this.state = state;
+  }
+  async fetch(request) {
+    const url = new URL(request.url);
+    const key = "history";
+    if (request.method === "POST" && url.pathname.endsWith("/append")) {
+      const msg = await request.json();
+      const history = await this.state.storage.get(key) || [];
+      history.push(msg);
+      const pruned = history.slice(-20);
+      await this.state.storage.put(key, pruned);
+      return new Response(null, { status: 204 });
+    }
+    if (request.method === "GET" && url.pathname.endsWith("/history")) {
+      const history = await this.state.storage.get(key) || [];
+      return Response.json(history);
+    }
+    if (request.method === "DELETE" && url.pathname.endsWith("/reset")) {
+      await this.state.storage.delete(key);
+      return new Response(null, { status: 204 });
+    }
+    return new Response("Not found", { status: 404 });
+  }
+};
+
+// src/worker.ts
+var DEFAULT_MODEL = "@cf/meta/llama-3.3-70b-instruct";
+var worker_default = {
+  fetch: /* @__PURE__ */ __name(async (request, env, ctx) => {
+    const url = new URL(request.url);
+    const { pathname } = url;
+    if (request.method === "GET" && pathname === "/") {
+      return new Response(INDEX_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
+    if (pathname === "/api/chat" && request.method === "POST") {
+      const { message } = await request.json();
+      if (!message || typeof message !== "string") {
+        return Response.json({ error: "Missing message" }, { status: 400 });
+      }
+      const cookies = request.headers.get("cookie") || "";
+      const m = /session=([^;]+)/.exec(cookies);
+      const sessionId = m?.[1] || crypto.randomUUID();
+      const id = env.MEMORY_DO.idFromName(sessionId);
+      const stub = env.MEMORY_DO.get(id);
+      const historyRes = await stub.fetch(`${new URL("/history", request.url)}`);
+      const history = await historyRes.json();
+      await stub.fetch(`${new URL("/append", request.url)}`, { method: "POST", body: JSON.stringify({ role: "user", content: message }) });
+      const systemPrompt = {
+        role: "system",
+        content: `You are a professional AI financial advisor running on Cloudflare Workers AI with Llama 3.3. You help users understand market movements, analyze stocks, and provide investment insights. 
+
+Key capabilities:
+- Explain market trends in plain English
+- Analyze stock performance and sectors
+- Generate watchlists based on market activity
+- Provide risk assessments and investment strategies
+- Interpret financial news and its market impact
+
+Current market context: You can see live trading flows on the globe visualization between major exchanges (NYSE, NASDAQ, LSE, TSE, SSE, BSE, ASX, TSX, etc.). 
+
+Be professional, data-driven, but accessible. Always include risk disclaimers for investment advice. Focus on education and analysis rather than specific buy/sell recommendations.`
+      };
+      const messages = [systemPrompt, ...history, { role: "user", content: message }];
+      const model = env.MODEL || DEFAULT_MODEL;
+      let reply = "";
+      try {
+        const aiRes = await env.AI.run(model, { messages });
+        reply = aiRes?.response || aiRes?.result || aiRes?.output || "";
+      } catch (error) {
+        console.log("AI call failed, using mock response:", error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        reply = `Hello! I'm a mock AI response running on Cloudflare Workers. You asked: "${message}". In production, this would be powered by Llama 3.3 on Workers AI. The error was: ${errorMsg}`;
+      }
+      await stub.fetch(`${new URL("/append", request.url)}`, { method: "POST", body: JSON.stringify({ role: "assistant", content: String(reply) }) });
+      const headers = new Headers({ "content-type": "application/json; charset=utf-8" });
+      if (!m) headers.append("Set-Cookie", `session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+      return new Response(JSON.stringify({ reply: String(reply), model }), { headers });
+    }
+    if (pathname === "/api/history" && request.method === "GET") {
+      const cookies = request.headers.get("cookie") || "";
+      const m = /session=([^;]+)/.exec(cookies);
+      if (!m) return Response.json([]);
+      const id = env.MEMORY_DO.idFromName(m[1]);
+      const stub = env.MEMORY_DO.get(id);
+      const res = await stub.fetch(`${new URL("/history", request.url)}`);
+      return new Response(res.body, { headers: { "content-type": "application/json; charset=utf-8" } });
+    }
+    if (pathname === "/api/reset" && request.method === "POST") {
+      const cookies = request.headers.get("cookie") || "";
+      const m = /session=([^;]+)/.exec(cookies);
+      if (m) {
+        const id = env.MEMORY_DO.idFromName(m[1]);
+        const stub = env.MEMORY_DO.get(id);
+        await stub.fetch(`${new URL("/reset", request.url)}`, { method: "DELETE" });
+      }
+      return new Response(null, { status: 204 });
+    }
+    if (pathname === "/api/financial-data" && request.method === "GET") {
+      const financialCenters = [
+        { name: "NYSE", lat: 40.7128, lng: -74.006, symbols: ["AAPL", "GOOGL", "MSFT"] },
+        { name: "LSE", lat: 51.5074, lng: -0.1278, symbols: ["BP", "SHEL", "AZN"] },
+        { name: "TSE", lat: 35.6762, lng: 139.6503, symbols: ["7203", "6758", "9984"] },
+        { name: "SSE", lat: 31.2304, lng: 121.4737, symbols: ["000001", "000002", "600036"] },
+        { name: "BSE", lat: 19.076, lng: 72.8777, symbols: ["RELIANCE", "TCS", "INFY"] }
+      ];
+      const marketData = [];
+      financialCenters.forEach((center) => {
+        center.symbols.forEach((symbol) => {
+          marketData.push({
+            symbol,
+            price: 50 + Math.random() * 200,
+            change: (Math.random() - 0.5) * 10,
+            changePercent: (Math.random() - 0.5) * 5,
+            volume: Math.floor(Math.random() * 1e7),
+            timestamp: Date.now(),
+            exchange: center.name,
+            lat: center.lat,
+            lng: center.lng
+          });
+        });
+      });
+      return Response.json(marketData);
+    }
+    if (pathname === "/api/market-data" && request.method === "GET") {
+      const demoData = [
+        {
+          symbol: "AAPL",
+          price: 175.5 + (Math.random() - 0.5) * 5,
+          change: (Math.random() - 0.5) * 3,
+          changePercent: (Math.random() - 0.5) * 2,
+          volume: Math.floor(Math.random() * 1e6),
+          timestamp: Date.now(),
+          exchange: "NASDAQ",
+          lat: 40.7128,
+          lng: -74.006
+        }
+      ];
+      return Response.json(demoData);
+    }
+    return new Response("Not found", { status: 404 });
+  }, "fetch")
+};
+
+// node_modules/wrangler/templates/middleware/middleware-ensure-req-body-drained.ts
+var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
+  try {
+    return await middlewareCtx.next(request, env);
+  } finally {
+    try {
+      if (request.body !== null && !request.bodyUsed) {
+        const reader = request.body.getReader();
+        while (!(await reader.read()).done) {
+        }
+      }
+    } catch (e) {
+      console.error("Failed to drain the unused request body.", e);
+    }
+  }
+}, "drainBody");
+var middleware_ensure_req_body_drained_default = drainBody;
+
+// node_modules/wrangler/templates/middleware/middleware-miniflare3-json-error.ts
+function reduceError(e) {
+  return {
+    name: e?.name,
+    message: e?.message ?? String(e),
+    stack: e?.stack,
+    cause: e?.cause === void 0 ? void 0 : reduceError(e.cause)
+  };
+}
+__name(reduceError, "reduceError");
+var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
+  try {
+    return await middlewareCtx.next(request, env);
+  } catch (e) {
+    const error = reduceError(e);
+    return Response.json(error, {
+      status: 500,
+      headers: { "MF-Experimental-Error-Stack": "true" }
+    });
+  }
+}, "jsonError");
+var middleware_miniflare3_json_error_default = jsonError;
+
+// .wrangler/tmp/bundle-uCW9SR/middleware-insertion-facade.js
+var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
+  middleware_ensure_req_body_drained_default,
+  middleware_miniflare3_json_error_default
+];
+var middleware_insertion_facade_default = worker_default;
+
+// node_modules/wrangler/templates/middleware/common.ts
+var __facade_middleware__ = [];
+function __facade_register__(...args) {
+  __facade_middleware__.push(...args.flat());
+}
+__name(__facade_register__, "__facade_register__");
+function __facade_invokeChain__(request, env, ctx, dispatch, middlewareChain) {
+  const [head, ...tail] = middlewareChain;
+  const middlewareCtx = {
+    dispatch,
+    next(newRequest, newEnv) {
+      return __facade_invokeChain__(newRequest, newEnv, ctx, dispatch, tail);
+    }
+  };
+  return head(request, env, ctx, middlewareCtx);
+}
+__name(__facade_invokeChain__, "__facade_invokeChain__");
+function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
+  return __facade_invokeChain__(request, env, ctx, dispatch, [
+    ...__facade_middleware__,
+    finalMiddleware
+  ]);
+}
+__name(__facade_invoke__, "__facade_invoke__");
+
+// .wrangler/tmp/bundle-uCW9SR/middleware-loader.entry.ts
+var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
+  constructor(scheduledTime, cron, noRetry) {
+    this.scheduledTime = scheduledTime;
+    this.cron = cron;
+    this.#noRetry = noRetry;
+  }
+  static {
+    __name(this, "__Facade_ScheduledController__");
+  }
+  #noRetry;
+  noRetry() {
+    if (!(this instanceof ___Facade_ScheduledController__)) {
+      throw new TypeError("Illegal invocation");
+    }
+    this.#noRetry();
+  }
+};
+function wrapExportedHandler(worker) {
+  if (__INTERNAL_WRANGLER_MIDDLEWARE__ === void 0 || __INTERNAL_WRANGLER_MIDDLEWARE__.length === 0) {
+    return worker;
+  }
+  for (const middleware of __INTERNAL_WRANGLER_MIDDLEWARE__) {
+    __facade_register__(middleware);
+  }
+  const fetchDispatcher = /* @__PURE__ */ __name(function(request, env, ctx) {
+    if (worker.fetch === void 0) {
+      throw new Error("Handler does not export a fetch() function.");
+    }
+    return worker.fetch(request, env, ctx);
+  }, "fetchDispatcher");
+  return {
+    ...worker,
+    fetch(request, env, ctx) {
+      const dispatcher = /* @__PURE__ */ __name(function(type, init) {
+        if (type === "scheduled" && worker.scheduled !== void 0) {
+          const controller = new __Facade_ScheduledController__(
+            Date.now(),
+            init.cron ?? "",
+            () => {
+            }
+          );
+          return worker.scheduled(controller, env, ctx);
+        }
+      }, "dispatcher");
+      return __facade_invoke__(request, env, ctx, dispatcher, fetchDispatcher);
+    }
+  };
+}
+__name(wrapExportedHandler, "wrapExportedHandler");
+function wrapWorkerEntrypoint(klass) {
+  if (__INTERNAL_WRANGLER_MIDDLEWARE__ === void 0 || __INTERNAL_WRANGLER_MIDDLEWARE__.length === 0) {
+    return klass;
+  }
+  for (const middleware of __INTERNAL_WRANGLER_MIDDLEWARE__) {
+    __facade_register__(middleware);
+  }
+  return class extends klass {
+    #fetchDispatcher = /* @__PURE__ */ __name((request, env, ctx) => {
+      this.env = env;
+      this.ctx = ctx;
+      if (super.fetch === void 0) {
+        throw new Error("Entrypoint class does not define a fetch() function.");
+      }
+      return super.fetch(request);
+    }, "#fetchDispatcher");
+    #dispatcher = /* @__PURE__ */ __name((type, init) => {
+      if (type === "scheduled" && super.scheduled !== void 0) {
+        const controller = new __Facade_ScheduledController__(
+          Date.now(),
+          init.cron ?? "",
+          () => {
+          }
+        );
+        return super.scheduled(controller);
+      }
+    }, "#dispatcher");
+    fetch(request) {
+      return __facade_invoke__(
+        request,
+        this.env,
+        this.ctx,
+        this.#dispatcher,
+        this.#fetchDispatcher
+      );
+    }
+  };
+}
+__name(wrapWorkerEntrypoint, "wrapWorkerEntrypoint");
+var WRAPPED_ENTRY;
+if (typeof middleware_insertion_facade_default === "object") {
+  WRAPPED_ENTRY = wrapExportedHandler(middleware_insertion_facade_default);
+} else if (typeof middleware_insertion_facade_default === "function") {
+  WRAPPED_ENTRY = wrapWorkerEntrypoint(middleware_insertion_facade_default);
+}
+var middleware_loader_entry_default = WRAPPED_ENTRY;
+export {
+  MemoryDO,
+  __INTERNAL_WRANGLER_MIDDLEWARE__,
+  middleware_loader_entry_default as default
+};
+//# sourceMappingURL=worker.js.map

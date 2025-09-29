@@ -2,9 +2,12 @@ name = "cf_ai_agents_demo"
 main = "src/worker.ts"
 compatibility_date = "2024-09-10"
 
-# Force local mode for development
+# Static assets configuration
+[assets]
+directory = "public"
+
+# Development configuration
 [dev]
-local = true
 
 [ai]
 # Bind Workers AI to env.AI
