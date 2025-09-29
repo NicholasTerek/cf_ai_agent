@@ -1,5 +1,9 @@
 # Markets Globe – AI at the Edge  
 
+<div align="center">
+  <img src="public/demo.gif" alt="Markets Globe Demo" width="800" style="max-width:100%;" />
+</div>  
+
 Financial dashboards overwhelm users with raw numbers. Traders, analysts, and even casual investors spend valuable time interpreting data instead of acting on insights.  
 
 **Markets Globe** solves this by turning real-time market feeds into **context-aware explanations** with memory and a conversational interface — so users get **the “why” behind the moves** instantly.  
@@ -11,16 +15,6 @@ This has a direct business impact:
 - **Scalable edge deployment** → Low latency for a global audience  
 
 The project meets all requirements: **AI, workflow/coordination, chat/voice UX, and Durable Object memory/state** — all on Cloudflare's edge.  
-
----
-
-## 🎥 Demo  
-
-<div align="center">
-  <img src="public/demo.gif" alt="Markets Globe Demo" width="800" style="max-width:100%;" />
-</div>  
-
----
 
 ## 🌍 What You See  
 
